@@ -1,0 +1,164 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <link rel="stylesheet" href="../assets/css/font-awesome.min.css" />
+    <script src="../assets/js/jquery-3.5.1.min.js"></script>
+    <script src="../assets/js/canvasjs.min.js"></script>
+    <script src="../assets/js/intro.min.js"></script>
+    <script src="../assets/fonts/c78c950296.js"></script>
+    <script src="../assets/js/Chart.min.js"></script>
+    <script src="../assets/js/bootstrap.min.js"></script>
+    <script src="../assets/js/bootstrap_tags/bootstrap-tagsinput.js"></script>
+    <link rel="stylesheet" href="../assets/css/content.css" />
+    <link rel="stylesheet" href="../assets/css/bootstrap.min.css" />
+    <link rel="stylesheet" href="../assets/css/bot.css" />
+    <link
+      rel="stylesheet"
+      href="../assets/js/bootstrap_tags/bootstrap-tagsinput.css"
+    />
+    <script src="../../index.js"></script>
+  </head>
+  <body>
+    <div class="navbar navbar-default navbar-static-top" role="navigation">
+      <div class="container-fluid container-wide">
+        <div class="navbar-header">
+          <a class="navbar-brand" href="/bot.html">
+            <h4>
+              Zwilt<img
+                width="20px"
+                height="20px"
+                src="../assets/images/icon.png"
+              />
+            </h4>
+          </a>
+        </div>
+        <div class="row">
+          <ul class="nav navbar-nav"></ul>
+          <ul class="nav navbar-nav col-xs-6 align-items-center"></ul>
+          <ul class="nav navbar-nav"></ul>
+        </div>
+      </div>
+    </div>
+    <div class="container-fluid">
+      <div class="row">
+        <div id="overlay">
+          <div id="overlay-text">
+            <b>
+              <h2>
+                1. Click on the Instagram tab, wait for it to load, then refresh
+                OR log in. <br />
+                2. If this message doesn't disappear:<br />
+                PLEASE NAVIGATE TO YOUR INSTAGRAM PROFILE AND CLICK THE BUTTON
+                BELOW.<br />
+                <br />
+                <button
+                  id="userLogin"
+                  class="btn btn-md btn-warning button-settings"
+                  type="button"
+                  style="display: none"
+                >
+                  Navigate To Instagram Profile And Click Here To Login
+                </button>
+              </h2>
+            </b>
+          </div>
+        </div>
+        <div class="jumbotron text-center header-banner">
+          <div class="body-wrapper">
+            <div id="sidebar-wrapper">
+              <br /><br />
+              <div
+                id="sidebar-instoo"
+                class="instoo-block effect egeon"
+                style="width: 100%"
+              >
+                <img
+                  id="formatted-img"
+                  width="80"
+                  height="80"
+                  class="img-current-user"
+                  src=""
+                />
+                <div id="sidebar-home" class="sidebar-item-active row">
+                  <div class="col-xs-5">
+                    <a href="#" class="insta"
+                      ><i class="fa fa-instagram" aria-hidden="true"></i
+                    ></a>
+                  </div>
+                  <div class="col-xs-5">Instagram</div>
+                </div>
+                <div id="sidebar-home-tiktok" class="sidebar-item row">
+                  <div class="col-xs-5">
+                    <a href="#" class="tiktok"
+                      ><i class="fa fa-music" aria-hidden="true"></i
+                    ></a>
+                  </div>
+                  <div class="col-xs-5">TikTok Beta</div>
+                </div>
+                <div id="sidebar-home-tw" class="sidebar-item row">
+                  <div class="col-xs-5">
+                    <a href="#" class="tw"
+                      ><i class="fa fa-twitter" aria-hidden="true"></i
+                    ></a>
+                  </div>
+                  <div class="col-xs-5">Twitter Beta</div>
+                </div>
+                <div id="sidebar-home-link2" class="sidebar-item row">
+                  <div class="col-xs-5">
+                    <a href="#" class="in"
+                      ><i class="fa fa-linkedin" aria-hidden="true"></i
+                    ></a>
+                  </div>
+                  <div class="col-xs-5">Linkedin Beta</div>
+                </div>
+                <div id="sidebar-home-pinterest" class="sidebar-item row">
+                  <div class="col-xs-5">
+                    <a href="#" class="pinterest"
+                      ><i class="fa fa-pinterest" aria-hidden="true"></i
+                    ></a>
+                  </div>
+                  <div class="col-xs-5">Pinterest Beta</div>
+                </div>
+                <div id="sidebar-home-facebook" class="sidebar-item row">
+                  <div class="col-xs-5">
+                    <a href="#" class="facebook"
+                      ><i class="fa fa-facebook" aria-hidden="true"></i
+                    ></a>
+                  </div>
+                  <div class="col-xs-5">Facebook Beta</div>
+                </div>
+                <div id="sidebar-home-tinder2" class="sidebar-item row">
+                  <div class="col-xs-5">
+                    <a href="#" class="tinder" title="Join us on Tinder"
+                      ><i class="fa fa-fire-alt" aria-hidden="true"></i
+                    ></a>
+                  </div>
+                  <div class="col-xs-5">Tinder Beta</div>
+                </div>
+                <div id="sidebar-home-crm" class="sidebar-item row">
+                  <div class="col-xs-5">
+                    <a href="#" class="crm" title=""
+                      ><i class="fa fa-users" aria-hidden="true"></i
+                    ></a>
+                  </div>
+                  <div class="col-xs-5">Social CRM</div>
+                </div>
+                <div id="sidebar-settings" class="sidebar-item row">
+                  <div class="col-xs-5"><i class="fas fa-cogs"></i></div>
+                  <div class="col-xs-5">Settings</div>
+                </div>
+                <div id="container"></div>
+                <div class="col-sm-12" style="padding-right: 0px !important">
+                  <div id="follow_count"></div>
+                  <br />
+                  <div id="unfollow_count"></div>
+                </div>
+              </div>
+            </div>
+            <div class="content-wrapper"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </body>
+</html>

@@ -1,0 +1,83 @@
+#sidebar-wrapper {
+  display: none;
+  overflow: auto;
+}
+.navbar {
+  position: relative;
+  min-height: 50px;
+  margin-bottom: 0px !important;
+  border: 1px solid transparent;
+}
+.jumbotron {
+  padding-top: 0px !important;
+  margin-bottom: 30px;
+  color: inherit;
+  background-color: #eee;
+}
+.modal.modal-wide .modal-dialog {
+  width: 90%;
+}
+.modal-wide .modal-body {
+  overflow-y: auto;
+}
+body {
+  text-align: center;
+}
+body p {
+  max-width: 400px;
+  margin: 20px auto;
+}
+#tallModal .modal-body p {
+  margin-bottom: 900px;
+}
+.modal.large {
+  width: 80%;
+}
+.modal-backdrop {
+  display: none;
+}
+.body-wrapper {
+  padding-bottom: 0px !important;
+}
+label {
+  margin-top: 20px !important;
+  margin-bottom: 0px !important;
+}
+.container-fluid .jumbotron {
+  padding-right: 0px !important;
+  padding-left: 0px !important;
+}
+#switchpaypal,
+#trial,
+#enterprise,
+#update {
+  z-index: 10000000;
+  position: fixed;
+  display: none;
+  width: 100%;
+  height: 100%;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.95);
+  color: white;
+}
+html,
+body {
+  margin: 0;
+  padding: 0;
+  font-family: Arial, Helvetica Neue, Helvetica, sans-serif;
+  font-size: 14px;
+}
+#calendar {
+  max-width: 900px;
+  margin: 40px auto;
+}
+
+#formatted-img {
+  display: none;
+  position: fixed;
+  z-index: -100000;
+  left: 150%;
+}
