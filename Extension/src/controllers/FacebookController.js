@@ -1,97 +1,116 @@
-import BaseController from "./BaseController.js";
-import FacebookModel from "../models/FacebookModel.js";
-import FacebookView from "../views/FacebookView.js";
+const BaseController = require("./BaseController.js");
+const FacebookModel = require("../models/FacebookModel.js");
+const FacebookView = require("../views/FacebookView.js");
+const { selectRandomElement, randomDelay } = require("../utils/helpers.js");
 
 class FacebookController extends BaseController {
   constructor() {
-    // Initialize our model & view
-    const model = new FacebookModel();
-    const view = new FacebookView();
-    super(model, view);
-
-    // Chrome extension communication port
-    this.comPort = null;
+    super("facebook");
+    this.model = new FacebookModel();
+    this.view = new FacebookView(this);
+    this.actionDelay = { min: 1000, max: 30000 };
   }
 
-  init() {
-    // This is called when the content script runs
-    this.createComPort();
-    console.log("Facebook Controller Initialized!");
+  // Creates comPort and sets up Initialization
+  setup() {
+    super.setup(); // Creates comPort and sets up message listeners
+    this.view.render();
+    this.connectModel();
+    this.isActive = true;
+    this.log("Facebook controller initialized");
   }
 
-  createComPort() {
-    this.comPort = chrome.runtime.connect({ name: "facebook" });
-    this.comPort.onMessage.addListener((msg) => this.onMessageReceive(msg));
-
-    window.addEventListener("message", (event) => {
-      if (event.source !== window) return;
-      if (event.data.Tag === "SharedData") {
-        this.model.setSharedData(event.data.SharedData);
-      }
-    });
+  /**
+   *  Generic contact data handler for all controllers
+   *  @param {Object} data - The data received.
+   */
+  connectModel() {
+    super.setupModelListeners();
+    this.model.on("LikeFollow", (data) => this.handleLikeFollow(data));
+    this.model.on("Updatefacebook", (data) => this.handleUpdate(data));
   }
 
+  // Message handling
   onMessageReceive(msg) {
-    console.log("Message Received:", msg);
-
-    if (msg.Tag === "Updatefacebook") {
-      // Maybe do something with msg.story
-      console.log("Update facebook:", msg.story);
-    } else if (msg.Tag === "LikeFollow") {
-      this.view.scrollToBottom();
-
-      const story = msg.story;
-      if (
-        story.StartfacebookFollow &&
-        story.FollowedPoolfacebookSize < story.MaxfacebookFollows
-      ) {
-        this.scrollLike(5);
+    super.onMessageReceive(msg);
+    try {
+      switch (msg.Tag) {
+        case "Updatefacebook":
+          this.handleUpdate(msg.story);
+          break;
+        case "LikeFollow":
+          this.handleLikeFollow(msg.story);
+          break;
+        default:
+          this.handleUnknownMessage(msg);
       }
+    } catch (error) {
+      this.handleError("MessageProcessing", error.message);
     }
   }
 
-  sendMessage(tag, msgTag, msg) {
-    const sendObj = { Tag: tag };
-    sendObj[msgTag] = msg;
-    console.log("Sending message to background:", sendObj);
-    this.comPort.postMessage(sendObj);
+  handleUpdate(story) {
+    this.model.updateStory(story);
+    this.view.status(`Processing story: ${story.title}`);
+    this.log(`Updated story: ${story.title}`);
   }
 
-  scrollLike(num) {
-    const delay = Math.floor(Math.random() * 30000) + 1000;
-    setTimeout(() => {
-      this.view.scrollToBottom();
 
-      const addFriendDivs = this.view.findAddFriendDivs();
-      const total = addFriendDivs.length;
-      const randomIndex = Math.floor(Math.random() * total);
+  // Action management
+  async initiateFollowSequence(iterations = 5) {
+    try {
+      for (let i = 0; i < iterations; i++) {
+        await this.performFollowAction();
+        await randomDelay();
+      }
+      this.model.emit("followSequenceComplete");
+    } catch (error) {
+      this.handleError("FollowSequence", error.message);
+    }
+  }
 
-      // Click the randomly chosen 'Add Friend' div
-      if (addFriendDivs[randomIndex]) {
-        const chosenDiv = addFriendDivs[randomIndex];
-        this.view.clickAddFriend(chosenDiv);
+  async performFollowAction() {
+    try {
+      await this.view.scrollToBottom();
+      const buttons = this.view.findAddFriendButtons();
 
-        // Example: Gather some data to send back
-        const parentNode =
-          chosenDiv.parentNode?.parentNode?.parentNode?.parentNode?.parentNode;
-        if (parentNode) {
-          const msgData = {
-            url:
-              "https://facebook.com/" +
-              parentNode.querySelector("a")?.getAttribute("href"),
-            username: parentNode.querySelector("a")?.innerText,
-            img: parentNode.querySelector("svg")?.getAttribute("xlink:href"),
-          };
-          this.sendMessage("DonefacebookFollow", "User", msgData);
+      if (buttons.length > 0) {
+        const targetButton = selectRandomElement(buttons);
+        await this.view.clickAddFriend(targetButton);
+
+        const profileData = this.view.extractProfileData(targetButton);
+        if (profileData) {
+          this.sendFollowMessage(profileData);
+          this.model.registerFollow(profileData);
         }
       }
+    } catch (error) {
+      this.handleError("FollowAction", error.message);
+    }
+  }
 
-      // Repeat if num > 0
-      if (num > 0) {
-        this.scrollLike(num - 1);
-      }
-    }, delay);
+  validateFollowRequest(story) {
+    return (
+      story.StartfacebookFollow &&
+      story.FollowedPoolfacebookSize < story.MaxfacebookFollows &&
+      this.model.canPerformAction("follow")
+    );
+  }
+
+  sendFollowMessage(data) {
+    this.sendMessage("DonefacebookFollow", "User", {
+      url: data.url,
+      username: data.username,
+      img: data.img,
+    });
+  }
+
+  // Calls the BaseController.destroy() method
+  destroy() {
+    this.view.destroy();
+    this.model.removeAllListeners();
+    super.destroy();
   }
 }
 
-export default FacebookController;
+module.exports = FacebookController;

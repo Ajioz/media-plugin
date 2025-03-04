@@ -1,94 +1,138 @@
-import BaseController from "./BaseController.js";
-import TwitterModel from "../models/TwitterModel.js";
-import TwitterView from "../views/TwitterView.js";
+const BaseController = require("./BaseController.js");
+const TwitterModel = require("../models/TwitterModel.js");
+const TwitterView = require("../views/TwitterView.js");
+const { randomDelay } = require("../utils/helpers.js");
 
 class TwitterController extends BaseController {
   constructor() {
-    // Initialize our model & view
-    const model = new TwitterModel();
-    const view = new TwitterView();
-    super(model, view);
-
-    // Chrome extension communication port
-    this.comPort = null;
+    super("twitter");
+    this.model = new TwitterModel();
+    this.view = new TwitterView(this);
+    this.actionDelay = { min: 1000, max: 5000 };
+    this.isActive = false;
   }
 
-  init() {
-    // Called when the content script runs
-    this.createComPort();
-    console.log("Twitter Controller Initialized!");
+  //  Creates comPort and sets up Initialization
+  setup() {
+    super.setup();
+    this.view.render();
+    this.connectModel();
+    this.isActive = true;
+    this.log("Twitter controller initialized");
   }
 
-  createComPort() {
-    this.comPort = chrome.runtime.connect({ name: "twitter" });
-    this.comPort.onMessage.addListener((msg) => this.onMessageReceive(msg));
-
-    window.addEventListener("message", (event) => {
-      if (event.source !== window) return;
-      if (event.data.Tag === "SharedData") {
-        this.model.setSharedData(event.data.SharedData);
-      }
-    });
+  /**
+   * Connects the model by setting up model listeners and handling specific events.
+   * 
+   * This method sets up listeners for the "like" and "limitReached" events on the model.
+   * When the "like" event is triggered, it calls the handleLikeSuccess method with the event data.
+   * When the "limitReached" event is triggered, it calls the handleLimitReached method.
+   */
+  connectModel() {
+    super.setupModelListeners();
+    this.model.on("like", (data) => this.handleLikeSuccess(data));
+    this.model.on("limitReached", () => this.handleLimitReached());
   }
 
   onMessageReceive(msg) {
-    console.log("Message Received:", msg);
-
-    if (msg.Tag === "UpdateTwitter") {
-      console.log("Update Twitter received", msg.story);
-    } else if (msg.Tag === "LikeFollow") {
-      this.view.scrollToBottom();
-
-      const story = msg.story;
-      if (
-        story.StartTwitterLike &&
-        story.LikedMediaTwitterSize < story.MaxTwitterLikes
-      ) {
-        this.scrollLike(5);
+    try {
+      switch (msg.Tag) {
+        case "UpdateTwitter":
+          this.handleUpdate(msg.story);
+          break;
+        case "LikeFollow":
+          this.handleLikeFollow(msg.story);
+          break;
+        case "StopActions":
+          this.stopAllActions();
+          break;
+        default:
+          this.handleUnknownMessage(msg);
       }
+    } catch (error) {
+      this.handleError("MessageProcessing", error);
     }
   }
 
-  sendMessage(tag, msgTag, msg) {
-    const sendObj = { Tag: tag };
-    sendObj[msgTag] = msg;
-    console.log("Sending message to background:", sendObj);
-    this.comPort.postMessage(sendObj);
+  handleUpdate(story) {
+    if (!this.isActive) return;
+    this.model.updateSettings(story);
+    this.view.status(`Processing update: ${story.title}`);
+    this.log(`New settings: ${JSON.stringify(story)}`);
   }
 
-  scrollLike(num) {
-    const delay = Math.floor(Math.random() * 30000) + 1000;
-    setTimeout(() => {
-      this.view.scrollToBottom();
+  async handleLikeFollow(story) {
+    if (!this.validateLikeRequest(story)) return;
 
-      // Find all Like divs (similar to Facebook's findAddFriendDivs)
-      const likeDivs = this.view.findLikeDivs();
-      const total = likeDivs.length;
-      const randomIndex = Math.floor(Math.random() * total);
+    try {
+      await this.initiateLikeSequence();
+      this.sendStatusUpdate();
+    } catch (error) {
+      this.handleError("LikeFollowError", error);
+    }
+  }
 
-      if (likeDivs[randomIndex]) {
-        const chosenDiv = likeDivs[randomIndex];
-        this.view.clickLike(chosenDiv);
+  validateLikeRequest(story) {
+    return (
+      this.isActive &&
+      story.StartTwitterLike &&
+      story.LikedMediaTwitterSize < story.MaxTwitterLikes &&
+      this.model.canLike()
+    );
+  }
 
-        // Example: Gather some data to send back (simulate data extraction)
-        const parentNode =
-          chosenDiv.parentNode?.parentNode?.parentNode?.parentNode;
-        if (parentNode) {
-          const msgData = {
-            url: window.location.href,
-            username: parentNode.querySelector("a")?.innerText,
-            img: parentNode.querySelector("img")?.src,
-          };
-          this.sendMessage("DoneTwitterLike", "User", msgData);
-        }
-      }
+  async initiateLikeSequence() {
+    this.view.scrollToBottom();
+    await randomDelay();
 
-      // Repeat if num > 0
-      if (num > 0) {
-        this.scrollLike(num - 1);
-      }
-    }, delay);
+    const likeDivs = this.view.findLikeDivs();
+    if (likeDivs.length === 0) {
+      this.handleError("NoLikeDivs", "No like divs found");
+      return;
+    }
+
+    const targetDiv = likeDivs[0];
+    await this.view.clickLike(targetDiv);
+
+    const profileData = this.view.extractProfileData();
+    if (profileData) {
+      this.sendLikeMessage(profileData);
+      this.model.registerLike(profileData);
+    }
+
+    await this.view.dismissModals();
+  }
+
+  sendLikeMessage(data) {
+    this.sendMessage("DoneTwitterLike", "User", {
+      url: window.location.href,
+      username: data.username,
+      img: data.img,
+    });
+  }
+
+  sendStatusUpdate() {
+    this.sendMessage("StatusUpdate", "Stats", this.model.getStats());
+  }
+
+
+  handleLimitReached() {
+    this.view.showWarning("Daily like limit reached");
+    this.stopAllActions();
+  }
+
+  stopAllActions() {
+    this.isActive = false;
+    this.view.cleanup();
+    this.log("All actions stopped");
+  }
+
+  // Calls the BaseController.destroy() method
+  destroy() {
+    this.view.destroy();
+    this.model.removeAllListeners();
+    super.destroy();
   }
 }
 
-export default TwitterController;
+module.exports = TwitterController;

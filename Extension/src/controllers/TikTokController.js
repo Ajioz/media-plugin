@@ -1,89 +1,92 @@
-import BaseController from "./BaseController.js";
-import TikTokModel from "../models/TikTokModel.js";
-import TikTokView from "../views/TikTokView.js";
+const BaseController = require("./BaseController");
+const TikTokModel = require("../models/TikTokModel");
+const TikTokView = require("../views/TikTokView");
+const { randomDelay } = require("../utils/helpers.js");
 
 class TikTokController extends BaseController {
-  constructor() {
-    const model = new TikTokModel();
-    const view = new TikTokView();
-    super(model, view);
-    this.comPort = null;
+  constructor(settings) {
+    super("tiktok");
+    this.model = new TikTokModel(settings);
+    this.view = new TikTokView(this);
+    this.initialize();
   }
 
-  init() {
-    this.createComPort();
-    console.log("TikTok Controller Initialized!");
+  //  Creates comPort and sets up Initialization
+  setup() {
+    super.setup();
+    this.view.render();
+    this.connectModel();
+    this.isActive = true;
+    this.log("TikTok controller initialized");
   }
 
-  createComPort() {
-    this.comPort = chrome.runtime.connect({ name: "tiktok" });
-    this.comPort.onMessage.addListener((msg) => this.onMessageReceive(msg));
-
-    window.addEventListener("message", (event) => {
-      if (event.source !== window) return;
-      if (event.data.Tag === "SharedData") {
-        this.model.setSharedData(event.data.SharedData);
-      }
-    });
+  connectModel() {
+    super.setupModelListeners();
+    this.model.on("scanInitiated", (data) => this.handleScan(data));
+    this.model.on("actionsProcessed", (actions) =>
+      this.processActions(actions)
+    );
   }
 
-  onMessageReceive(msg) {
-    console.log("Message Received:", msg);
-
-    if (msg.Tag === "UpdateTikTok") {
-      this.processVideoLinks();
-    } else if (msg.Tag === "LikeFollow") {
-      this.processLikeFollow(msg.story);
+  handleMessage(msg) {
+    try {
+      this.model.handleMessage(msg);
+    } catch (error) {
+      this.handleError("MessageError", error);
     }
   }
 
-  processVideoLinks() {
-    const videos = this.view.findVideoLinks();
-    videos.forEach((video) => {
-      this.sendMessage("TikTokTarget", "target", video.getAttribute("href"));
+  handleScan(scanData) {
+    const items = this.view.findVideoItems();
+    items.forEach((item) => {
+      this.sendMessage("TikTokTarget", "target", item.href);
+      this.model.scrapedTags.push(this.view.extractVideoData(item));
     });
   }
 
-  processLikeFollow(story) {
-    this.sendMessage("DoneTikTok", "target", window.location.href);
-
-    const followBtn = this.view.findFollowButton();
-    if (
-      story.StartTikTokFollow &&
-      story.FollowedPoolTikTokSize < story.MaxTikTokFollows &&
-      followBtn
-    ) {
-      followBtn.click();
-      this.sendUserData("DoneTikTokFollow");
-    }
-
-    setTimeout(() => {
-      const likeBtn = this.view.findLikeButton();
-      if (
-        story.StartTikTokLike &&
-        story.LikedMediaTikTokSize < story.MaxTikTokLikes &&
-        likeBtn
-      ) {
-        likeBtn.click();
-        this.sendUserData("DoneTikTokLike");
+  processActions(actions) {
+    actions.forEach((action) => {
+      switch (action.type) {
+        case "follow":
+          this.handleFollow(action.data);
+          break;
+        case "like":
+          this.handleLike(action.data);
+          break;
       }
-    }, 4000);
+      this.sendMessage(action.messageTag, "User", action.data);
+    });
   }
 
-  sendUserData(tag) {
-    const url = window.location.href;
-    const username = url.split("/")[3];
-    const img = this.view.findUserAvatar();
-
-    const msgData = { url, username, img };
-    this.sendMessage(tag, "User", msgData);
+  handleFollow(profileData) {
+    if (this.model.followedAccounts.length < this.model.settings.maxFollows) {
+      this.view.clickFollowButton();
+      this.view.highlightVideoElement(profileData.url);
+    }
   }
 
+  handleLike(videoData) {
+    if (this.model.likedVideos.length < this.model.settings.maxLikes) {
+      setTimeout(() => {
+        this.view.clickLikeButtons();
+        this.view.highlightVideoElement(videoData.url);
+      }, randomDelay());
+    }
+  }
+
+  // Override sendMessage to extend the message with stats
   sendMessage(tag, msgTag, msg) {
-    const sendObj = { Tag: tag, [msgTag]: msg };
-    console.log("Sending message to background:", sendObj);
-    this.comPort.postMessage(sendObj);
+    // Extending original message
+    const extendedMsg = { ...msg, stats: this.model.getStats() };
+    super.sendMessage(tag, msgTag, extendedMsg);
+  }
+
+  // Calls the BaseController.destroy() method
+  destroy() {
+    this.view.destroy();
+    this.model.removeAllListeners();
+    super.destroy();
   }
 }
 
-export default TikTokController;
+module.exports = TikTokController;

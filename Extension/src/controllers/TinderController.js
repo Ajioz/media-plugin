@@ -1,87 +1,150 @@
-import BaseController from "./BaseController.js";
-import TinderModel from "../models/TinderModel.js";
-import TinderView from "../views/TinderView.js";
+const BaseController = require("./BaseController.js");
+const TinderModel = require("../models/TinderModel.js");
+const TinderView = require("../views/TinderView.js");
+const { randomDelay } = require("../utils/helpers.js");
 
 class TinderController extends BaseController {
   constructor() {
-    const model = new TinderModel();
-    const view = new TinderView();
-    super(model, view);
-
-    this.comPort = null;
+    super("tinder");
+    this.model = new TinderModel();
+    this.view = new TinderView(this);
+    this.actionDelay = { min: 1000, max: 4000 };
+    this.isActive = false;
   }
 
-  init() {
-    this.createComPort();
-    console.log("Tinder Controller Initialized!");
+  //  Creates comPort and sets up Initialization
+  setup() {
+    super.setup();
+    this.view.render();
+    this.connectModel();
+    this.isActive = true;
+    this.log("Tinder controller initialized");
   }
 
-  createComPort() {
-    this.comPort = chrome.runtime.connect({ name: "tinder" });
-    this.comPort.onMessage.addListener((msg) => this.onMessageReceive(msg));
-
-    window.addEventListener("message", (event) => {
-      if (event.source !== window) return;
-      if (event.data.Tag === "SharedData") {
-        this.model.setSharedData(event.data.SharedData);
-      }
-    });
+  /**
+   * Connects the model by setting up model listeners and handling specific events.
+   *
+   * This method sets up listeners for the "like" and "limitReached" events on the model.
+   * When the "like" event is triggered, it calls the handleLikeSuccess method with the event data.
+   * When the "limitReached" event is triggered, it calls the handleLimitReached method.
+   */
+  connectModel() {
+    super.setupModelListeners();
+    this.model.on("like", (data) => this.handleLikeSuccess(data));
+    this.model.on("limitReached", () => this.handleLimitReached());
   }
 
   onMessageReceive(msg) {
-    console.log("Message Received:", msg);
-
-    if (msg.Tag === "UpdateTinder") {
-      console.log("Update Tinder:", msg.story);
-    } else if (msg.Tag === "LikeFollow") {
-      this.view.scrollToBottom();
-      const story = msg.story;
-
-      if (
-        story.StartTinderLike &&
-        story.LikedMediaTinderSize < story.MaxTinderLikes
-      ) {
-        this.scrollLike(5);
+    try {
+      switch (msg.Tag) {
+        case "UpdateTinder":
+          this.handleUpdate(msg.story);
+          break;
+        case "LikeFollow":
+          this.handleLikeFollow(msg.story);
+          break;
+        case "StopActions":
+          this.stopAllActions();
+          break;
+        default:
+          this.handleUnknownMessage(msg);
       }
+    } catch (error) {
+      this.handleError("MessageProcessing", error);
     }
   }
 
-  sendMessage(tag, msgTag, msg) {
-    const sendObj = { Tag: tag };
-    sendObj[msgTag] = msg;
-    console.log("Sending message to background:", sendObj);
-    this.comPort.postMessage(sendObj);
+  handleUpdate(story) {
+    if (!this.isActive) return;
+    this.model.updateSettings(story);
+    this.view.status(`Processing update: ${story.title}`);
+    this.log(`New settings: ${JSON.stringify(story)}`);
   }
 
-  scrollLike(num) {
-    const delay = Math.floor(Math.random() * 30000) + 1000;
-    setTimeout(() => {
-      this.view.scrollToBottom();
+  async handleLikeFollow(story) {
+    if (!this.validateLikeRequest(story)) return;
 
-      const likeButtons = this.view.findLikeButtons();
-      const total = likeButtons.length;
-      const randomIndex = Math.floor(Math.random() * total);
+    try {
+      await this.initiateLikeSequence();
+      this.sendStatusUpdate();
+    } catch (error) {
+      this.handleError("LikeFollowError", error);
+    }
+  }
 
-      if (likeButtons[randomIndex]) {
-        const chosenButton = likeButtons[randomIndex];
-        this.view.clickLikeButton(chosenButton);
+  validateLikeRequest(story) {
+    return (
+      this.isActive &&
+      story.StartTinderLike &&
+      story.LikedMediaTinderSize < story.MaxTinderLikes &&
+      this.model.canLike()
+    );
+  }
 
-        const userProfile = this.view.findUserProfile();
-        if (userProfile.username) {
-          const msgData = {
-            url: "https://tinder.com",
-            username: userProfile.username,
-            img: userProfile.img,
-          };
-          this.sendMessage("DoneTinderLike", "User", msgData);
-        }
-      }
+  async initiateLikeSequence() {
+    // Replicate raw code's scroll behavior
+    this.view.scrollTop(20);
 
-      if (num > 0) {
-        this.scrollLike(num - 1);
-      }
-    }, delay);
+    await randomDelay();
+
+    const buttons = this.view.findLikeButtons();
+    if (buttons.length === 0) {
+      this.handleError("NoLikeButtons", "No like buttons found");
+      return;
+    }
+
+    const targetButton = buttons[0];
+    await this.view.clickLikeButton(targetButton);
+
+    const profileData = this.view.extractProfileData();
+    if (profileData) {
+      this.sendLikeMessage(profileData);
+      this.model.registerLike(profileData);
+    }
+
+    await this.view.dismissModals();
+  }
+
+  sendLikeMessage(data) {
+    this.sendMessage("DoneTinderLike", "User", {
+      url: "tinder.com", // Matching raw code's hardcoded value
+      username: data.username,
+      img: data.img,
+    });
+  }
+
+  sendStatusUpdate() {
+    this.sendMessage("StatusUpdate", "Stats", this.model.getStats());
+  }
+
+  handleLimitReached() {
+    this.view.showWarning("Daily like limit reached");
+    this.stopAllActions();
+  }
+
+  stopAllActions() {
+    this.isActive = false;
+    this.view.cleanup();
+    this.log("All actions stopped");
+  }
+
+  // Subclass (override)
+  handleModelError(error) {
+    super.handleModelError(error);
+    console.error(`[TinderController] Custom Handling:`, error);
+    this.sendMessage("Error", "Details", {
+      platform: "tinder",
+      errorType: error.code || "CustomError",
+      error: error.message,
+    });
+  }
+
+  // Calls the BaseController.destroy() method
+  destroy() {
+    this.view.destroy();
+    this.model.removeAllListeners();
+    super.destroy();
   }
 }
 
-export default TinderController;
+module.exports = TinderController;

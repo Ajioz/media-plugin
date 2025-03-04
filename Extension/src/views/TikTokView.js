@@ -1,31 +1,73 @@
-import BaseView from "./BaseView.js";
+const BaseView = require("./BaseView");
 
 class TikTokView extends BaseView {
-  constructor() {
-    super();
-    // Use the same userTag as Facebook (adjust if you have a TikTok-specific selector)
-    this.userTag = "._7UhW9";
+  constructor(controller) {
+    super(controller);
+    this._config = {
+      baseDomain: "tiktok.com",
+      selectors: {
+        videoItem: '[data-e2e="video-item"]',
+        userAvatar: '[data-e2e="user-avatar"] img',
+        followButton: '[data-e2e="follow-button"]',
+        likeButton: '[data-e2e="like-button"]',
+        username: '[data-e2e="user-unique-id"]',
+      },
+    };
   }
 
-  scrollToBottom() {
-    window.scrollTo(0, document.body.scrollHeight);
+  findVideoItems() {
+    return Array.from(
+      document.querySelectorAll(this._config.selectors.videoItem)
+    );
   }
 
-  // Instead of "clickAddFriend", we use "clickLike" for TikTok
-  clickLike(divEl) {
-    divEl.click();
+  extractVideoData(item) {
+    return {
+      url: super._buildProfileUrl(item, this._config.baseDomain),
+      timestamp: new Date(),
+      elementType: "video",
+    };
   }
 
-  // Helper to find all "Like" divs on the page, analogous to Facebook's findAddFriendDivs
-  findLikeDivs() {
-    const allDivs = document.getElementsByTagName("div");
-    return [...allDivs].filter((div) => {
-      return (
-        div.getAttribute("aria-label") &&
-        div.getAttribute("aria-label").includes("Like")
-      );
+  extractProfileData() {
+    const element = document.querySelector(this._config.selectors.username);
+    return super._extractProfileData(element, {
+      baseDomain: this._config.baseDomain,
+      usernameSelector: this._config.selectors.username,
+      imageSelector: this._config.selectors.userAvatar,
     });
+  }
+
+  clickFollowButton() {
+    const followButton = document.querySelector(
+      this._config.selectors.followButton
+    );
+    if (followButton && !followButton.textContent.includes("Following")) {
+      followButton.click();
+      super._highlightElement(followButton, "transform: scale(1.1)", 500);
+    }
+  }
+
+  clickLikeButtons() {
+    document
+      .querySelectorAll(this._config.selectors.likeButton)
+      .forEach((btn) => {
+        btn.click();
+        super._highlightElement(btn, "color: #ff004f", 500);
+      });
+  }
+
+  highlightVideoElement(url) {
+    const element = document.querySelector(`[href='${url}']`);
+    if (element) {
+      super._highlightElement(element, "outline: 2px solid #ff004f", 2000);
+    }
+  }
+
+  // Cleanup uses base implementation
+  destroy() {
+    super.destroy();
   }
 }
 
-export default TikTokView;
+module.exports = TikTokView;

@@ -445,7 +445,7 @@ chrome.runtime.onConnect.addListener(function (a) {
 chrome.runtime.onInstalled.addListener(function (a) {
   "install" == a.reason &&
     (chrome.tabs.create(
-      { url: chrome.extension.getURL("src/htmls/bot.html") },
+      { url: chrome.extension.getURL("src/views/templates/bot.html") },
       function (b) {
         console.log(b);
       }
@@ -465,7 +465,7 @@ chrome.runtime.onInstalled.addListener(function (a) {
 });
 chrome.browserAction.onClicked.addListener(function (a) {
   chrome.tabs.create(
-    { url: chrome.extension.getURL("src/htmls/bot.html") },
+    { url: chrome.extension.getURL("src/views/templates/bot.html") },
     function (b) {
       console.log(b);
     }

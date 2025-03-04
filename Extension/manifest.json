@@ -1,5 +1,6 @@
 {
   "manifest_version": 2,
+
   "name": "Zwilt",
   "description": "Zwilt is a free service that lets you grow your followers and connections on social media faster over time. We interact with accounts likely to organically grow your own by simulating human behavior in your browser.",
   "version": "14.3.6",
@@ -7,50 +8,86 @@
   "browser_action": {
     "default_icon": "src/assets/images/icon.png"
   },
-  "content_security_policy": "script-src 'self'; object-src 'self'",
+  "content_security_policy": "script-src 'self';  object-src 'self'",
   "content_scripts": [
     {
       "matches": ["*://*.instagram.com/*"],
       "css": [],
-      "js": ["src/assets/js/jquery-3.5.1.min.js", "instagram.js"]
+      "js": [
+        "src/assets/js/jquery-3.5.1.min.js",
+        "app/index.js",
+        "src/controllers/InstagramController.js"
+      ]
     },
     {
       "matches": ["*://*.tinder.com/*"],
+
       "css": [],
-      "js": ["src/assets/js/jquery-3.5.1.min.js", "tinder.js"]
+      "js": [
+        "src/assets/js/jquery-3.5.1.min.js",
+        "app/index.js",
+        "src/controllers/TinderController.js"
+      ]
     },
     {
       "matches": ["*://*.linkedin.com/*"],
+
       "css": [],
-      "js": ["src/assets/js/jquery-3.5.1.min.js", "linkedin.js"]
+      "js": [
+        "src/assets/js/jquery-3.5.1.min.js",
+        "app/index.js",
+        "src/controllers/linkedinController.js"
+      ]
     },
     {
       "matches": ["*://*.pinterest.com/*", "*://*.pinterest.co.uk/*"],
       "css": [],
-      "js": ["src/assets/js/jquery-3.5.1.min.js", "pinterest.js"]
+      "js": [
+        "src/assets/js/jquery-3.5.1.min.js",
+        "app/index.js",
+        "src/controllers/PinterestController.js"
+      ]
     },
     {
       "matches": ["*://*.tiktok.com/*"],
+
       "css": [],
-      "js": ["src/assets/js/jquery-3.5.1.min.js", "tiktok.js"]
+      "js": [
+        "src/assets/js/jquery-3.5.1.min.js",
+        "app/index.js",
+        "src/controllers/TikTokController.js"
+      ]
     },
     {
       "matches": ["*://*.facebook.com/*"],
+
       "css": [],
-      "js": ["src/assets/js/jquery-3.5.1.min.js", "facebook.js"]
+      "js": [
+        "src/assets/js/jquery-3.5.1.min.js",
+        "app/index.js",
+        "src/controllers/FacebookController.js"
+      ]
     },
+
     {
       "matches": ["*://*.twitter.com/*"],
+
       "css": [],
-      "js": ["src/assets/js/jquery-3.5.1.min.js", "twitter.js"]
+      "js": [
+        "src/assets/js/jquery-3.5.1.min.js",
+        "app/index.js",
+        "src/controllers/TwitterController.js"
+      ]
     }
   ],
+
   "background": {
     "scripts": [
       "src/assets/js/jquery-3.5.1.min.js",
       "src/assets/js/background.js"
     ]
   },
+
   "permissions": [
     "tabs",
     "*://*.instagram.com/*",
@@ -59,5 +96,5 @@
     "downloads",
     "https://instoo.com/"
   ],
-  "web_accessible_resources": ["src/htmls/bot.html"]
+  "web_accessible_resources": ["src/views/templates/bot.html"]
 }

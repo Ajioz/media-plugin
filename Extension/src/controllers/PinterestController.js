@@ -1,123 +1,95 @@
-import BaseController from "./BaseController.js";
-import PinterestModel from "../models/PinterestModel.js";
-import PinterestView from "../views/PinterestView.js";
+const BaseController = require("./BaseController");
+const PinterestModel = require("../models/PinterestModel");
+const PinterestView = require("../views/PinterestView");
+const { randomDelay } = require("../utils/helpers.js");
 
 class PinterestController extends BaseController {
-  constructor() {
-    const model = new PinterestModel();
-    const view = new PinterestView();
-    super(model, view);
-
-    this.comPort = null;
+  constructor(settings) {
+    super("pinterest");
+    this.model = new PinterestModel(settings);
+    this.view = new PinterestView(this);
+    this.initialize();
   }
 
-  init() {
-    this.createComPort();
-    console.log("Pinterest Controller Initialized!");
+  //  Creates comPort and sets up Initialization
+  setup() {
+    super.setup();
+    this.view.render();
+    this.connectModel();
+    this.isActive = true;
+    this.log("Pinterest controller initialized");
   }
 
-  createComPort() {
-    this.comPort = chrome.runtime.connect({ name: "pinterest" });
-    this.comPort.onMessage.addListener((msg) => this.onMessageReceive(msg));
+  connectModel() {
+    super.setupModelListeners();
+    this.model.on("scanInitiated", (data) => this.handleScanInitiated(data));
+    this.model.on("actionsProcessed", (actions) => this.handleActions(actions));
+  }
 
-    window.addEventListener("message", (event) => {
-      if (event.source !== window) return;
-      if (event.data.Tag === "SharedData") {
-        this.model.setSharedData(event.data.SharedData);
-      }
+  handleIncomingMessage(msg) {
+    try {
+      // Pass message directly to model while maintaining controller mediation
+      this.model.handleMessage(msg);
+    } catch (error) {
+      this.handleError("MessageProcessing", error);
+    }
+  }
+
+  handleScanInitiated(scanData) {
+    this.view.status(`Scanning depth: ${scanData.depth}`);
+    const items = this.view.findResultItems();
+
+    items.forEach((item) => {
+      this.sendMessage("PinterestTarget", "target", item.href);
+      this.model.scrapedData.push(this.view.extractItemData(item));
     });
   }
 
-  onMessageReceive(msg) {
-    console.log("Message Received:", msg);
+  handleActions(actions) {
+    actions.forEach((action) => {
+      switch (action.type) {
+        case "follow":
+          this.processFollowAction(action.data);
+          break;
+        case "like":
+          this.processLikeAction(action.data);
+          break;
+      }
 
-    if (msg.Tag === "UpdatePinterest") {
-      this.view.scrollToBottom();
-      this.sendMessage("GetPinterest", "target", "");
-    } else if (msg.Tag === "LikeFollow") {
-      this.handleLikeFollow(msg.story);
+      this.sendMessage(action.messageTag, "User", action.data);
+      this.view.logAction(action.type, action.data);
+    });
+  }
+
+  processFollowAction(profileData) {
+    if (this.model.followedProfiles.length < this.model.settings.maxFollows) {
+      this.view.clickFollowButton();
+      this.view.highlightProfile(profileData);
     }
   }
 
+  processLikeAction(pinData) {
+    if (this.model.likedPins.length < this.model.settings.maxLikes) {
+      setTimeout(() => {
+        this.view.clickEngagementIcons();
+        this.view.highlightPin(pinData);
+      }, randomDelay());
+    }
+  }
+
+  // Override sendMessage to extend the message with stats
   sendMessage(tag, msgTag, msg) {
-    const sendObj = { Tag: tag };
-    sendObj[msgTag] = msg;
-    console.log("Sending message to background:", sendObj);
-    this.comPort.postMessage(sendObj);
+    // Extending original message
+    const extendedMsg = { ...msg, stats: this.model.getStats() };
+    super.sendMessage(tag, msgTag, extendedMsg);
   }
 
-  handleLikeFollow(story) {
-    setTimeout(() => {
-      const url = window.location.href;
-      const username = this.extractUsername();
-      const img = this.extractProfileImage();
-      const msgData = { url, username, img };
-
-      this.sendMessage("DonePinterestData", "User", msgData);
-
-      if (
-        story.StartPinterestFollow &&
-        story.FollowedPoolPinterestSize < story.MaxPinterestFollows
-      ) {
-        this.followUser(msgData);
-      }
-
-      if (
-        story.StartPinterestLike &&
-        story.LikedMediaPinterestSize < story.MaxPinterestLikes
-      ) {
-        this.likePost(msgData);
-      }
-    }, 5000);
-  }
-
-  extractUsername() {
-    const divs = document.getElementsByTagName("div");
-    for (const div of divs) {
-      if (div.getAttribute("data-test-id")?.includes("creator-profile-name")) {
-        return div.innerText;
-      }
-    }
-    return "Unknown";
-  }
-
-  extractProfileImage() {
-    const images = document.getElementsByTagName("img");
-    let counter = 0;
-    for (const img of images) {
-      if (img.getAttribute("src")?.includes("pinimg")) {
-        counter++;
-        if (counter === 2) {
-          return img.src;
-        }
-      }
-    }
-    return "https://instoo.com/logo.png";
-  }
-
-  followUser(msgData) {
-    const followButtons = this.view.findFollowButtons();
-    if (followButtons.length > 0) {
-      followButtons[0].click();
-      this.sendMessage("DonePinterestFollow", "User", msgData);
-    }
-  }
-
-  likePost(msgData) {
-    setTimeout(() => {
-      const likeButtons = this.view.findLikeButtons();
-      if (likeButtons.length > 0) {
-        likeButtons[0].click();
-      }
-
-      const reactionButtons = this.view.findReactionButtons();
-      if (reactionButtons.length > 0) {
-        reactionButtons[0].click();
-      }
-
-      this.sendMessage("DonePinterestLike", "User", msgData);
-    }, 4000);
+  // Calls the BaseController.destroy() method
+  destroy() {
+    this.view.destroy();
+    this.model.removeAllListeners();
+    super.destroy();
   }
 }
 
-export default PinterestController;
+module.exports = PinterestController;

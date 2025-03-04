@@ -1,78 +1,101 @@
-import BaseController from "./BaseController.js";
-import LinkedInModel from "../models/LinkedInModel.js";
-import LinkedInView from "../views/LinkedInView.js";
+const BaseController = require("./BaseController.js");
+const LinkedInModel = require("../models/LinkedInModel.js");
+const LinkedInView = require("../views/LinkedInView.js");
+const { randomDelay } = require("../utils/helpers.js");
 
 class LinkedInController extends BaseController {
   constructor() {
-    const model = new LinkedInModel();
-    const view = new LinkedInView();
-    super(model, view);
-
-    this.comPort = null;
+    super("linkedin");
+    this.model = new LinkedInModel();
+    this.view = new LinkedInView(this);
+    this.actionDelay = { min: 3000, max: 7000 };
   }
 
-  init() {
-    this.createComPort();
-    console.log("LinkedIn Controller Initialized!");
+  //  Creates comPort and sets up Initialization
+  setup() {
+    super.setup();
+    this.view.render();
+    this.connectModel();
+    this.isActive = true;
+    this.log("LinkedIn controller initialized");
   }
 
-  createComPort() {
-    this.comPort = chrome.runtime.connect({ name: "linkedin" });
-    this.comPort.onMessage.addListener((msg) => this.onMessageReceive(msg));
-
-    window.addEventListener("message", (event) => {
-      if (event.source !== window) return;
-      if (event.data.Tag === "SharedData") {
-        this.model.setSharedData(event.data.SharedData);
-      }
-    });
+  connectModel() {
+    super.setupModelListeners();
   }
 
   onMessageReceive(msg) {
-    console.log("Message Received:", msg);
-
-    if (msg.Tag === "UpdateLinkedIn") {
-      this.view.scrollToBottom();
-    } else if (msg.Tag === "LikeFollow") {
-      this.handleConnections(msg.story);
+    super.onMessageReceive(msg);
+    try {
+      switch (msg.Tag) {
+        case "UpdateLinkedIn":
+          this.handleUpdate(msg.story);
+          break;
+        case "LikeFollow":
+          this.handleScanRequest(msg.story);
+          break;
+        default:
+          this.handleUnknownMessage(msg);
+      }
+    } catch (error) {
+      this.handleError("MessageProcessing", error.message);
     }
   }
 
-  sendMessage(tag, msgTag, msg) {
-    const sendObj = { Tag: tag };
-    sendObj[msgTag] = msg;
-    console.log("Sending message to background:", sendObj);
-    this.comPort.postMessage(sendObj);
+  handleUpdate(story) {
+    this.model.updateScanConfig(story);
+    this.view.status(`Scan depth: ${story.scanDepth}`);
   }
 
-  handleConnections(story) {
-    if (
-      story.StartLinkedInConnect &&
-      story.ConnectedPoolSize < story.MaxLinkedInConnections
-    ) {
-      setTimeout(() => {
-        const connectButtons = this.view.findConnectButtons();
-        if (connectButtons.length > 0) {
-          const randomIndex = Math.floor(Math.random() * connectButtons.length);
-          const selectedButton = connectButtons[randomIndex];
-
-          this.view.clickConnect(selectedButton);
-
-          const msgData = {
-            url: window.location.href,
-            username: this.extractUsername(),
-          };
-
-          this.sendMessage("DoneLinkedInConnect", "User", msgData);
-        }
-      }, Math.random() * 3000 + 1000);
+  async handleScanRequest(config) {
+    if (this.validateScanRequest(config)) {
+      await this.initiateProfileScan(config.scanDepth);
     }
   }
 
-  extractUsername() {
-    const profileLink = document.querySelector(this.view.userTag);
-    return profileLink ? profileLink.innerText.trim() : "Unknown";
+  validateScanRequest(config) {
+    return (
+      config.scanDepth > 0 &&
+      this.model.remainingScans() > 0 &&
+      !this.model.isScanning()
+    );
+  }
+
+  async initiateProfileScan(iterations) {
+    try {
+      for (let i = 0; i < iterations; i++) {
+        await this.view.scroll();
+        await this.processProfile();
+        await randomDelay();
+      }
+    } catch (error) {
+      this.handleError("ScanSequence", error.message);
+    }
+  }
+
+  async processProfile() {
+    const profileLinks = this.view.findProfileLinks();
+
+    for (const link of profileLinks) {
+      if (!this.model.isProcessed(link.href)) {
+        await this.view.clickElement(link);
+        await this.view.clickElement(this.view.selectors.seeMoreButton);
+
+        const contactData = this.view.extractContactInfo();
+        this.model.storeContactData(contactData);
+
+        await this.view.navigateBack(2);
+        break;
+      }
+    }
+  }
+
+  // Calls the BaseController.destroy() method
+  destroy() {
+    this.view.destroy();
+    this.model.removeAllListeners();
+    super.destroy();
   }
 }
 
-export default LinkedInController;
+module.exports = LinkedInController;

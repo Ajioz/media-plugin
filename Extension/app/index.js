@@ -969,6 +969,7 @@ $(document).ready(function () {
       $(document).on("click", ".remove-location-collect", function () {
         RemoveLocationJobTag(this);
       });
+      
       $(document).on("click", ".remove-comment-collect", function () {
         $(this).closest("tr").remove();
         SendMessage(
